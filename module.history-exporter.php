@@ -47,10 +47,10 @@ SetupWebPage::AddModule(
 		// Components
 		//
 		'datamodel' => array(
-			'main.history-exporter.php'
+			'main.history-exporter.php',
+			'historyexporter.class.inc.php'
 		),
 		'webservice' => array(
-
 		),
 		'data.struct' => array(
 			// add your 'structure' definition XML files here,
