@@ -62,13 +62,24 @@ class ExportHistoryMenuItem implements iPopupMenuExtension
 				// add a separator
 				$aResult[] = new SeparatorPopupMenuItem(); // Note: separator does not work in iTop 2.0 due to Trac #698, fixed in 2.0.1
 
+        $oObj = $param;
+        $oFilter = DBobjectSearch::FromOQL("SELECT ".get_class($oObj)." WHERE id=".$oObj->GetKey());
+        $sFilter = $oFilter->serialize();
+        // $sUrl = ApplicationContext::MakeObjectUrl(get_class($oObj), $oObj->GetKey());
+        // $sUIPage = cmdbAbstractObject::ComputeStandardUIPage(get_class($oObj));
+        // $oAppContext = new ApplicationContext();
+        // $sContext = $oAppContext->GetForLink();
+        // $oPage->add_linked_script(utils::GetAbsoluteUrlAppRoot().'js/xlsx-export.js');
+        $sJSFilter = addslashes($sFilter);
+
 				// Add a new menu item that triggers a custom JS function defined in our own javascript file: js/sample.js
 				$sModuleDir = basename(dirname(__FILE__));
-				$sExportUrl = utils::GetAbsoluteUrlModulesRoot().$sModuleDir.'/export.php';
-				$aResult[] = new URLPopupMenuItem('UI:Menu:ExportHistory', Dict::S('UI:Menu:ExportHistory'), $sExportUrl, '_blank');
+				// $sExportUrl = utils::GetAbsoluteUrlModulesRoot().$sModuleDir.'/export.php';
+				// $aResult[] = new URLPopupMenuItem('UI:Menu:ExportHistory', Dict::S('UI:Menu:ExportHistory'), $sExportUrl."?filter=".urlencode($sFilter), '_blank');
+        // $aResult[] = new URLPopupMenuItem('UI:Menu:ExportHistory', Dict::S('UI:Menu:ExportHistory'), utils::GetAbsoluteUrlAppRoot()."pages/$sUIPage?operation=search&filter=".urlencode($sFilter)."&format=csv&{$sContext}"),
 
-				// $sJSFileUrl = utils::GetAbsoluteUrlModulesRoot().$sModuleDir.'/js/export.js';
-				// $aResult[] = new JSPopupMenuItem('UI:Menu:ExportHistory', Dict::S('UI:Menu:ExportHistory'), "HistoryExportDialog('$sXlsxJSFilter');", array($sJSFileUrl)),
+				$sJSFileUrl = utils::GetAbsoluteUrlModulesRoot().$sModuleDir.'/js/historyexport.js';
+				$aResult[] = new JSPopupMenuItem('UI:Menu:ExportHistory', Dict::S('UI:Menu:ExportHistory'), "HistoryExport('$sJSFilter');", array($sJSFileUrl));
 
 			}
 			break;
