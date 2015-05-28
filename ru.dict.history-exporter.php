@@ -7,6 +7,7 @@
  */
 
 Dict::Add('RU RU', 'Russian', 'Russian', array(
-    'UI:Menu:ExportHistory' => 'Экспортировать историю',
+    'HistoryExporter:Menu' => 'Экспорт истории...',
+    'HistoryExporter:ExportDialogTitle' => 'Экспорт истории',
 ));
 ?>

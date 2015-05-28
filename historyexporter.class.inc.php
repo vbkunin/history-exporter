@@ -35,7 +35,6 @@ class HistoryExporter extends ExcelExporter
       switch($this->sState)
       {
         case 'new':
-
           // Формируем информацию об объекте и пишем в файл
           $aQueryParams = $this->oSearch->GetInternalParams();
           if (!(UserRights::IsActionAllowed($aQueryParams['objclass'], UR_ACTION_READ) && (UR_ALLOWED_YES || UR_ALLOWED_DEPENDS)))
@@ -46,67 +45,76 @@ class HistoryExporter extends ExcelExporter
           $oObject = MetaModel::GetObject($aQueryParams['objclass'], $aQueryParams['objkey']);
 
           $this->GetDetailsFields($oObject);
+          // var_dump($this->aDetailsFields);
 
-
-
-
-          $sDetailsSheet = MetaModel::GetName(get_class($oObject)).": ".$oObject->GetName(); // TODO: перенести в building-excel
-          // var_dump($sClassName, $oObject->GetName());
-          // $oObject->GetLabel($sAttCode) => $oObject->Get($sAttCodeEx)
-          //
           $hFile = @fopen($this->GetDetailsFile(), 'ab');
           if ($hFile === false)
           {
             throw new Exception('HistoryExporter: Failed to open temporary details data file: "'.$this->GetDetailsFile().'" for writing.');
           }
-          $oSet = DBObjectSet::FromObject($oObject);
-          $this->GetFieldsList($oSet, $this->bAdvancedMode); // это нужно для проверки aAuthorizedClasses и получения aFieldsList
-          while($aObjects = $oSet->FetchAssoc())
-          {
-            // $aRow = array();
-            foreach($this->aAuthorizedClasses as $sAlias => $sClassName)
+
+          // Первая строка - Класс и Название объекта
+          $aRow = array(MetaModel::GetName(get_class($oObject)), $oObject->GetName());
+          $sRow = json_encode($aRow);
+          fwrite($hFile, $sRow."\n");
+
+          $aRow = array('', '');
+          $sRow = json_encode($aRow);
+          fwrite($hFile, $sRow."\n");
+
+          foreach ($this->aDetailsFields as $key => $value) {
+            if (is_array($value))
             {
-              $oObj = $aObjects[$sAlias];
-              // if ($this->bAdvancedMode)
-              // {
-              //   $aRow[] = $oObj->GetKey();
-              // }
-              foreach($this->aFieldsList[$sAlias] as $sAttCodeEx => $oAttDef)
+              if ($key == 'Lists' )
               {
-                $sLabel = MetaModel::GetLabel($sClassName, $sAttCodeEx);
-                $value = $oObj->Get($sAttCodeEx);
-                if ($value instanceOf ormCaseLog)
-                {
-                  // Extract the case log as text and remove the "===" which make Excel think that the cell contains a formula the next time you edit it!
-                  $sExcelVal = trim(preg_replace('/========== ([^=]+) ============/', '********** $1 ************', $value->GetText()));
+                // lists пока не обрабатываем
+              }
+              elseif ($key == 'CaseLogs')
+              {
+                foreach ($value as $sAttCode) {
+                  $sLabel = $oObject->GetLabel($sAttCode);
+                  $oCaseLog = $oObject->Get($sAttCode);
+                  $sValue = trim(preg_replace('/========== ([^=]+) ============/', '********** $1 ************', $oCaseLog->GetText()));
+                  $aRow = array($sLabel.':', $sValue);
+                  $sRow = json_encode($aRow);
+                  fwrite($hFile, $sRow."\n");
                 }
-                else
-                {
-                  $sExcelVal =  $oAttDef->GetEditValue($value, $oObj);
+              }
+              else
+              {
+                // fieldset
+                // key - заголовок, value - массив полей
+                // | Название набора | пустота |
+                $aRow = array(Dict::S($key), '');
+                $sRow = json_encode($aRow);
+                fwrite($hFile, $sRow."\n");
+                foreach ($value as $sAttCode) {
+                  // | Название свойства: | Значение свойства |
+                  $sLabel = $oObject->GetLabel($sAttCode);
+                  $sValue = $oObject->GetEditValue($sAttCode);
+                  $aRow = array($sLabel.':', $sValue);
+                  $sRow = json_encode($aRow);
+                  fwrite($hFile, $sRow."\n");
                 }
-                $aRow = array($sLabel, $sExcelVal);
+                // Пустая строка после набора полей
+                $aRow = array('', '');
                 $sRow = json_encode($aRow);
                 fwrite($hFile, $sRow."\n");
               }
             }
+            else
+            {
+              // Обрабатываем отдельные поля
+              $sAttCode = $value;
+              // | Название свойства: | Значение свойства |
+              $sLabel = $oObject->GetLabel($sAttCode);
+              $sValue = $oObject->GetEditValue($sAttCode);
+              $aRow = array($sLabel.':', $sValue);
+              $sRow = json_encode($aRow);
+              fwrite($hFile, $sRow."\n");
+            }
           }
           fclose($hFile);
-
-
-
-          // $hFile = @fopen($this->GetDataFile(), 'ab');
-          // if ($hFile === false)
-          // {
-          //   throw new Exception('ExcelExporter: Failed to open temporary data file: "'.$this->GetDataFile().'" for writing.');
-          // }
-          // // $sHistoryHeader = json_encode($aHistoryHeader);
-          // // fwrite($hFile, json_encode($aHistoryHeader)."\n");
-          // // $sHistoryTableHeaders = json_encode($aHistoryTableHeaders);
-          // fwrite($hFile, json_encode($aHistoryTableHeaders)."\n");
-          // fclose($hFile);
-
-
-
 
           // Считаем изменения объекта и подготавливаем заголовки для листа с историей
           $oIDSet = new CMDBObjectSet($this->oSearch);
@@ -125,7 +133,6 @@ class HistoryExporter extends ExcelExporter
           $this->aStatistics['data_retrieval_duration'] += microtime(true) - $fTime;
           // $this->GetFieldsList($oIDSet, $this->bAdvancedMode, true, array('date', 'userinfo', 'change'));
           // $sRow = json_encode($this->aTableHeaders);
-          $sHistorySheet = Dict::S('UI:HistoryTab'); // TODO: перенести в building-excel
           $aHistoryTableHeaders = array(Dict::S('UI:History:Date') => "datetime", Dict::S('UI:History:User') => "string", Dict::S('UI:History:Changes') => "string");
           $hFile = @fopen($this->GetHistoryFile(), 'ab');
           if ($hFile === false)
@@ -144,16 +151,15 @@ class HistoryExporter extends ExcelExporter
           $aIDs = array_slice($this->aObjectsIDs, $this->iPosition, $this->iChunkSize);
 
           $oCurrentSearch->AddCondition('id', $aIDs, 'IN');
-          $hFile = @fopen($this->GetDataFile(), 'ab');
+          $hFile = @fopen($this->GetHistoryFile(), 'ab');
           if ($hFile === false)
           {
-            throw new Exception('ExcelExporter: Failed to open temporary data file: "'.$this->GetDataFile().'" for writing.');
+            throw new Exception('ExcelExporter: Failed to open temporary data file: "'.$this->GetHistoryFile().'" for writing.');
           }
           $oSet = new DBObjectSet($oCurrentSearch, array('date'=>false));
           $oSet->Rewind();
           $this->GetFieldsList($oSet, $this->bAdvancedMode);
 
-          // var_dump($this->aFieldsList);
           $aChanges= array();
           // Группируем изменения, сделанные за одну операцию
           while($oChangeOp = $oSet->Fetch())
@@ -180,98 +186,6 @@ class HistoryExporter extends ExcelExporter
           }
           fclose($hFile);
 
-          // while($aObjects = $oSet->FetchAssoc())
-          // {
-          //   $aRow = array();
-          //   foreach($this->aAuthorizedClasses as $sAlias => $sClassName)
-          //   {
-          //     $oObj = $aObjects[$sAlias];
-          //     if ($this->bAdvancedMode)
-          //     {
-          //       $aRow[] = $oObj->GetKey();
-          //     }
-          //     foreach($this->aFieldsList[$sAlias] as $sAttCodeEx => $oAttDef)
-          //     {
-          //       $value = $oObj->Get($sAttCodeEx);
-          //       // var_dump($value);
-          //       if ($value instanceOf ormCaseLog)
-          //       {
-          //         // Extract the case log as text and remove the "===" which make Excel think that the cell contains a formula the next time you edit it!
-          //         $sExcelVal = trim(preg_replace('/========== ([^=]+) ============/', '********** $1 ************', $value->GetText()));
-          //       }
-          //       else
-          //       {
-          //         $sExcelVal =  $oAttDef->GetEditValue($value, $oObj);
-          //       }
-          //       $aRow[] = $sExcelVal;
-          //     }
-          //   }
-          //   $sRow = json_encode($aRow);
-          //   fwrite($hFile, $sRow."\n");
-          // }
-          // fclose($hFile);
-
-          if (($this->iPosition + $this->iChunkSize) > count($this->aObjectsIDs))
-          {
-            // Next state
-            $this->sState = 'building-excel';
-            $sCode = 'building-excel';
-            $iPercentage = 80;
-            $sMessage = Dict::S('ExcelExporter:BuildingExcelFile');
-          }
-          else
-          {
-            $sCode = 'retrieving-data';
-            $this->iPosition += $this->iChunkSize;
-            $iPercentage = 5 + round(75 * ($this->iPosition / count($this->aObjectsIDs)));
-            $sMessage = Dict::S('ExcelExporter:RetrievingData');
-          }
-        break;
-
-        case 'retrieving-history':
-          // $this->GetFieldsList($oIDSet, $this->bAdvancedMode, true, array('CMDBChangeOp.change', 'CMDBChange.date', 'CMDBChangeOp.userinfo'));
-
-          $oCurrentSearch = clone $this->oSearch;
-          $aIDs = array_slice($this->aObjectsIDs, $this->iPosition, $this->iChunkSize);
-
-          $oCurrentSearch->AddCondition('id', $aIDs, 'IN');
-          $hFile = @fopen($this->GetDataFile(), 'ab');
-          if ($hFile === false)
-          {
-            throw new Exception('ExcelExporter: Failed to open temporary data file: "'.$this->GetDataFile().'" for writing.');
-          }
-          $oSet = new DBObjectSet($oCurrentSearch);
-          $this->GetFieldsList($oSet, $this->bAdvancedMode);
-          while($aObjects = $oSet->FetchAssoc())
-          {
-            $aRow = array();
-            foreach($this->aAuthorizedClasses as $sAlias => $sClassName)
-            {
-              $oObj = $aObjects[$sAlias];
-              if ($this->bAdvancedMode)
-              {
-                $aRow[] = $oObj->GetKey();
-              }
-              foreach($this->aFieldsList[$sAlias] as $sAttCodeEx => $oAttDef)
-              {
-                $value = $oObj->Get($sAttCodeEx);
-                if ($value instanceOf ormCaseLog)
-                {
-                  // Extract the case log as text and remove the "===" which make Excel think that the cell contains a formula the next time you edit it!
-                  $sExcelVal = trim(preg_replace('/========== ([^=]+) ============/', '********** $1 ************', $value->GetText()));
-                }
-                else
-                {
-                  $sExcelVal =  $oAttDef->GetEditValue($value, $oObj);
-                }
-                $aRow[] = $sExcelVal;
-              }
-            }
-            $sRow = json_encode($aRow);
-            fwrite($hFile, $sRow."\n");
-          }
-          fclose($hFile);
-
           if (($this->iPosition + $this->iChunkSize) > count($this->aObjectsIDs))
           {
             // Next state
@@ -290,27 +204,51 @@ class HistoryExporter extends ExcelExporter
         break;
 
         case 'building-excel':
-          $hFile = @fopen($this->GetDataFile(), 'rb');
+
+          // Лист с деталями объекта
+          $hFile = @fopen($this->GetDetailsFile(), 'rb');
           if ($hFile === false)
           {
-            throw new Exception('ExcelExporter: Failed to open temporary data file: "'.$this->GetDataFile().'" for reading.');
+            throw new Exception('HistoryExporter: Failed to open temporary details file: "'.$this->GetDetailsFile().'" for reading.');
           }
-          $sHeaders = fgets($hFile);
-          $aHeaders = json_decode($sHeaders, true);
-
-          $aData = array();
+          $sTitle = fgets($hFile);
+          $aTitle = json_decode($sTitle, true);
+          // $sDetailsSheet = $aTitle[0].' '.$aTitle[1];
+          $sDetailsSheet = Dict::S('UI:PropertiesTab');
+          $aDetailsHeaders = array($aTitle[0].':' => 'string', $aTitle[1] => 'string');
+          $aDetails = array();
           while($sLine = fgets($hFile))
           {
             $aRow = json_decode($sLine);
-            $aData[] = $aRow;
+            $aDetails[] = $aRow;
           }
           fclose($hFile);
-          @unlink($this->GetDataFile());
+          @unlink($this->GetDetailsFile());
+
+          // Лист с историей
+          $hFile = @fopen($this->GetHistoryFile(), 'rb');
+          if ($hFile === false)
+          {
+            throw new Exception('ExcelExporter: Failed to open temporary history file: "'.$this->GetHistoryFile().'" for reading.');
+          }
+          $sHistoryHeaders = fgets($hFile);
+          $aHistoryHeaders = json_decode($sHistoryHeaders, true);
+          $sHistorySheet = Dict::S('UI:HistoryTab');
+          $aHistory = array();
+          while($sLine = fgets($hFile))
+          {
+            $aRow = json_decode($sLine);
+            $aHistory[] = $aRow;
+          }
+          fclose($hFile);
+          @unlink($this->GetHistoryFile());
+
 
           $fStartExcel = microtime(true);
           $writer = new XLSXWriter();
           $writer->setAuthor(UserRights::GetUserFriendlyName());
-          $writer->writeSheet($aData,'Sheet1', $aHeaders);
+          $writer->writeSheet($aDetails, $sDetailsSheet, $aDetailsHeaders);
+          $writer->writeSheet($aHistory, $sHistorySheet, $aHistoryHeaders);
           $fExcelTime = microtime(true) - $fStartExcel;
           $this->aStatistics['excel_build_duration'] = $fExcelTime;
 
@@ -382,11 +320,7 @@ class HistoryExporter extends ExcelExporter
 
   protected function GetDetailsFields($oObject)
   {
-    // $oAppContext = new ApplicationContext();
-    // $sStateAttCode = MetaModel::GetStateAttributeCode(get_class($oObject));
-    $aDetails = array();
     $sClass = get_class($oObject);
-
     // Получаем все колонки, наборы (fieldset) и поля для отображения деталей объекта
     if (UserRights::IsPortalUser())
     {
@@ -396,87 +330,125 @@ class HistoryExporter extends ExcelExporter
       {
         require_once($sPortalConfig);
       }
-      $sConstName = 'PORTAL_'.strtoupper($sClass).'_DETAILS_ZLIST';
-      if (defined($sConstName))
+      $sZListConstName = 'PORTAL_'.strtoupper($sClass).'_DETAILS_ZLIST';
+      if (defined($sZListConstName))
       {
-        // var_dump($sConstName);
-        $aDetailsList = json_decode(constant($sConstName), true);
+        $aDetailsZListItems = json_decode(constant($sZListConstName), true);
       }
       else
       {
-        throw new Exception("HistoryExporter: Missing portal constant '$sConstName'");
+        throw new Exception("HistoryExporter: Missing portal constant '$sZListConstName'");
+      }
+      // Формируем структуру: убираем колонки, оставляем наборы и поля и их порядок
+      $aDetails = self::ProcessDetailsList($aDetailsZListItems);
+      // Добавляем журналы
+      $sPublicLogConstName = 'PORTAL_'.strtoupper($sClass).'_PUBLIC_LOG';
+      if (defined($sPublicLogConstName))
+      {
+        $aDetails['CaseLogs'][] = constant($sPublicLogConstName);
+      }
+      else
+      {
+        throw new Exception("HistoryExporter: Missing portal constant '$sPublicLogConstName'");
       }
     }
     else
     {
       // Если пользователь - агент, получаем обычный список полей для деталей
-      $aDetailsList = MetaModel::GetZListItems($sClass, 'details');
+      $aDetailsZListItems = MetaModel::GetZListItems($sClass, 'details');
+      // Формируем структуру: убираем колонки, оставляем наборы и поля и их порядок
+      $aDetails = self::ProcessDetailsList($aDetailsZListItems);
+      // Добавляем журналы
+      foreach(MetaModel::ListAttributeDefs($sClass) as $sAttCode => $oAttDef)
+      {
+        if ($oAttDef instanceof AttributeCaseLog)
+        {
+          $aDetails['CaseLogs'][] = $sAttCode;
+        }
+      }
+      // var_dump('Структура полностью:');
+      // var_dump($aDetails);
+      //
+      // Если у объекта есть жизненный цикл, то некоторые поля нужно скрыть в зависимости от статуса
+      $sStateAttCode = MetaModel::GetStateAttributeCode($sClass);
+      if ($sStateAttCode)
+      {
+        $sState = $oObject->Get($sStateAttCode);
+        $aDetails = self::RemoveHiddenFields($sClass, $sState, $aDetails);
+        // var_dump('Структура видимая:');
+        // var_dump($aDetails);
+      }
     }
-    var_dump($aDetailsList);
 
-    // Формируем структуру: убираем колонки, оставляем наборы и поля и их порядок
-    // | Название набора  |               |
-    // | Название поля    | Значение поля |
-    $aDetailsStruct = self::ProcessDetailsList($aDetailsList);
+    $this->aDetailsFields = $aDetails;
+    // $this->aDetailsFields = self::FillAttributeDefs($sClass, $aDetails);
+    // var_dump('Заполненный:');
+    // var_dump($aDetails);
+  }
 
-    var_dump($aDetailsStruct);
-    // Перебираем поля и оставляем только те, которые отображаются в текущем статусе объекта
-    // TODO: убрать в отдельную функцию, которая в случае с набором полей вызывает себя еще раз
-    foreach($aDetailsStruct as $key => $value )
+  // static function FillAttributeDefs($sClass, $aDetails)
+  // {
+  //   $aResult = array();
+  //   foreach ($aDetails as $key => $value) {
+  //     if (is_array($value))
+  //     {
+  //       $aResult[$key] = self::FillAttributeDefs($sClass, $value);
+  //     }
+  //     else
+  //     {
+  //       $aResult[$value] = MetaModel::GetAttributeDef($sClass, $value);
+  //     }
+  //   }
+  //   return $aResult;
+  // }
+
+  static function RemoveHiddenFields($sClass, $sState, $aFieldsList)
+  {
+    $aResult = array();
+    foreach($aFieldsList as $key => $value )
     {
       if (is_array($value))
       {
-        // Если это набор полей
+        // Если это массив => набор полей, повторяем для каждого поля
         $sFieldset = $key;
         $aFields = $value;
-        foreach ($aFields as $sAttCode) {
-          $iFlags = $oObject->GetAttributeFlags($sAttCode);
-          // var_dump($sAttCode, $iFlags & OPT_ATT_HIDDEN);
-          if (($iFlags & OPT_ATT_HIDDEN) == 0)
-          {
-            // Если поле отображается в текущем статусе объекта
-            $aDetails[$sFieldset][] = $sAttCode;
-          }
-        }
+        $aResult[$sFieldset] = self::RemoveHiddenFields($sClass, $sState, $aFields);
       }
       else
       {
         // Если это отдельное поле
         $sAttCode = $value;
-        $iFlags = $oObject->GetAttributeFlags($sAttCode);
-        // var_dump($sAttCode, $iFlags & OPT_ATT_HIDDEN);
+        $iFlags = MetaModel::GetAttributeFlags($sClass, $sState, $sAttCode);
         if (($iFlags & OPT_ATT_HIDDEN) == 0)
         {
           // Если поле отображается в текущем статусе объекта
-          $aDetails[] = $sAttCode;
+          $aResult[] = $sAttCode;
         }
       }
     }
-
-    // var_dump($aDetails);
-
+    return $aResult;
   }
 
-  static function ProcessDetailsList($aList)
+  static function ProcessDetailsList($aFieldsList)
   {
     $aResult = array();
     $aListFields = array(); // вкладки со связанными объектами
-    foreach($aList as $key => $value)
+    foreach($aFieldsList as $key => $value)
     {
       if (!is_array($value))
       {
         if (preg_match('/^(.*)_list$/U', $value))
         {
-          $aListFields[] = $value;
+          $aListFields['Lists'][] = $value;
         }
         else
         {
           $aResult[] = $value;
         }
       }
-      elseif (preg_match('/^fieldset:(.*)$/U', $key))
+      elseif (preg_match('/^fieldset:(.*)$/U', $key, $matches))
       {
-        $aResult[$key] = $value;
+        $aResult[$matches[1]] = self::ProcessDetailsList($value);
       }
       else
       {

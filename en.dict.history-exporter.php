@@ -7,6 +7,7 @@
  */
 
 Dict::Add('EN US', 'English', 'English', array(
-    'UI:Menu:ExportHistory' => 'Export history',
+    'HistoryExporter:Menu' => 'Export history...',
+    'HistoryExporter:ExportDialogTitle' => 'History export',
 ));
 ?>

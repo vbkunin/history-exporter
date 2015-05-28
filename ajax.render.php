@@ -84,16 +84,16 @@ EOF
     // Режим выгрузки history-only пока не делаем
     // $oPage->add('<p><input type="checkbox" id="export-history-olny"/>&nbsp;<label for="export-history-olny">'.Dict::S('HistoryExporter:HistoryOnlyMode').'</label></p>');
     // $oPage->add('<p style="font-size:10pt;margin-left:2em;margin-top:-0.5em;padding-bottom:1em;">'.Dict::S('HistoryExporter:HistoryOnlyMode+').'</p>');
-    $oPage->add('<p><input type="checkbox" id="export-auto-download" checked="checked"/>&nbsp;<label for="export-auto-download">'.Dict::S('HistoryExporter:AutoDownload').'</label></p>');
+    $oPage->add('<p><input type="checkbox" id="export-auto-download" checked="checked"/>&nbsp;<label for="export-auto-download">'.Dict::S('ExcelExport:AutoDownload').'</label></p>');
     $oPage->add('</div>');
-    $oPage->add('<div class="progress"><p class="status-message">'.Dict::S('HistoryExporter:PreparingExport').'</p><div class="progress-bar"><div class="progress-label"></div></div></div>');
-    $oPage->add('<div class="statistics"><div class="stats-toggle closed">'.Dict::S('HistoryExporter:Statistics').'<div class="stats-data"></div></div></div>');
+    $oPage->add('<div class="progress"><p class="status-message">'.Dict::S('ExcelExport:PreparingExport').'</p><div class="progress-bar"><div class="progress-label"></div></div></div>');
+    $oPage->add('<div class="statistics"><div class="stats-toggle closed">'.Dict::S('ExcelExport:Statistics').'<div class="stats-data"></div></div></div>');
     $oPage->add('</div>');
     $aLabels = array(
       'dialog_title' => Dict::S('HistoryExporter:ExportDialogTitle'),
       'cancel_button' => Dict::S('UI:Button:Cancel'),
-      'export_button' => Dict::S('HistoryExporter:ExportButton'),
-      'download_button' => Dict::Format('HistoryExporter:DownloadButton', 'history.xlsx'), //TODO: better name for the file (based on the class of the filter??)
+      'export_button' => Dict::S('ExcelExporter:ExportButton'),
+      'download_button' => Dict::Format('ExcelExporter:DownloadButton', 'history.xlsx'), //TODO: better name for the file (based on the class of the filter??)
     );
     $sJSLabels = json_encode($aLabels);
     $sFilter = addslashes($sFilter);
@@ -109,7 +109,7 @@ EOF
 
     $oHistoryExporter = new HistoryExporter();
     $oHistoryExporter->SetObjectList($oSearch);
-    // $oHistoryExporter->SetChunkSize(1); //Поочередно будем обрабатывать исторю каждого тикета, потому что истории может быть много, а тикет пока только один.
+    // $oHistoryExporter->SetChunkSize(10);
     // $oHistoryExporter->SetAdvancedMode($bAdvanced);
     $sToken = $oHistoryExporter->SaveState();
     $oPage->add(json_encode(array('status' => 'ok', 'token' => $sToken)));
@@ -137,13 +137,13 @@ EOF
     $oPage->SetContentDisposition('attachment', 'history.xlsx');
     $sFileContent = HistoryExporter::GetExcelFileFromToken($sToken);
     $oPage->add($sFileContent);
-    // HistoryExporter::CleanupFromToken($sToken); TODO
+    HistoryExporter::CleanupFromToken($sToken);
     break;
 
     case 'xlsx_abort':
     // Stop & cleanup an export...
     $sToken = utils::ReadParam('token', '', false, 'raw_data');
-    // HistoryExporter::CleanupFromToken($sToken); TODO
+    HistoryExporter::CleanupFromToken($sToken);
     break;
 
 
