@@ -33,7 +33,7 @@ $(function()
                 title: this.options.labels.dialog_title,
                 modal: true,
                 width: 500,
-                height: 300,
+                height: 'auto',
                 buttons: [
                     { text: this.options.labels.export_button, 'class': 'export-button', click: function() {
                         me._start();

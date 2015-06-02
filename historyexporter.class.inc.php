@@ -368,16 +368,16 @@ class HistoryExporter extends ExcelExporter
       }
       // var_dump('Структура полностью:');
       // var_dump($aDetails);
-      //
-      // Если у объекта есть жизненный цикл, то некоторые поля нужно скрыть в зависимости от статуса
-      $sStateAttCode = MetaModel::GetStateAttributeCode($sClass);
-      if ($sStateAttCode)
-      {
-        $sState = $oObject->Get($sStateAttCode);
-        $aDetails = self::RemoveHiddenFields($sClass, $sState, $aDetails);
-        // var_dump('Структура видимая:');
-        // var_dump($aDetails);
-      }
+    }
+    //
+    // Если у объекта есть жизненный цикл, то некоторые поля нужно скрыть в зависимости от статуса
+    $sStateAttCode = MetaModel::GetStateAttributeCode($sClass);
+    if ($sStateAttCode)
+    {
+      $sState = $oObject->Get($sStateAttCode);
+      $aDetails = self::RemoveHiddenFields($sClass, $sState, $aDetails);
+      // var_dump('Структура видимая:');
+      // var_dump($aDetails);
     }
 
     $this->aDetailsFields = $aDetails;
